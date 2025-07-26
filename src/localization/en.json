@@ -1,0 +1,111 @@
+{
+    "errors": {
+      "noPlayerPlaying": "⛔ No Player is currently playing.",
+      "notAuthorized": "⛔ You are not authorized to use these controls.",
+      "volumeMax": "🔊 Volume is already at maximum (100%).",
+      "volumeMin": "🔉 Volume is already at minimum (0%).",
+      "PlayerAlreadyPaused": "⏸ Player is already paused.",
+      "PlayerNotPaused": "▶️ Player is not paused.",
+      "cannotPause": "⛔ | Unable to pause the Player.",
+      "cannotResume": "⛔ | Unable to resume the Player.",
+      "cannotSkip": "⛔ | Unable to skip the Player.",
+      "cannotStop": "⛔ | Unable to stop the Player.",
+      "cannotIncreaseVolume": "⛔ | Unable to increase the volume.",
+      "cannotDecreaseVolume": "⛔ | Unable to decrease the volume.",
+      "invalidPlayerNumber": "⛔ Please provide a valid Player number between 2 and {max}.",
+      "cannotRemovePlayer": "⛔ | Unable to remove the specified Player.",
+      "unableToDisplayQueue": "⛔ | Unable to display the queue.",
+      "unableToDisplayNowPlaying": "⛔ | Unable to display the currently playing Player.",
+      "unableToClearQueue": "⛔ | Unable to clear the queue.",
+      "unableToCreatePlayerCard": "⛔ An error occurred while creating the Player card.",
+      "unknownCommand": "❓ Unknown command. Please use a valid command.",
+      "unknownError": "⛔ An unexpected error occurred."
+    },
+    "commands": {
+      "play": {
+        "description": "Play a Player from YouTube or a supported platform.",
+        "noQuery": "⛔ Please provide a Player name or URL to play.",
+        "requestReceived": "🔊 Request received. The bot is processing your request."
+      },
+      "pause": {
+        "description": "Pause the currently playing Player.",
+        "paused": "⏸ Player has been paused.",
+        "alreadyPaused": "⏸ Player is already paused."
+      },
+      "resume": {
+        "description": "Resume the paused Player.",
+        "resumed": "▶️ Player has been resumed.",
+        "notPaused": "▶️ Player is not paused."
+      },
+      "skip": {
+        "description": "Skip the currently playing Player.",
+        "skipped": "⏭️ Player has been skipped.",
+        "notEnoughPlayers": "⚠️ Not enough Players in the queue to skip."
+      },
+      "stop": {
+        "description": "Stop the Player and clear the queue.",
+        "stopped": "⏹️ Player has been stopped and the queue has been cleared."
+      },
+      "volumeUp": {
+        "description": "Increase the volume by 10%.",
+        "increased": "🔊 Volume increased to {volume}%."
+      },
+      "volumeDown": {
+        "description": "Decrease the volume by 10%.",
+        "decreased": "🔉 Volume decreased to {volume}%."
+      },
+      "repeat": {
+        "description": "Toggle the repeat mode.",
+        "repeatOff": "🔁 Repeat mode set to **Off**.",
+        "repeatPlayer": "🔁 Repeat mode set to **Repeat Player**.",
+        "repeatQueue": "🔁 Repeat mode set to **Repeat Queue**."
+      },
+      "queue": {
+        "description": "Display the current Player queue.",
+        "currentQueue": "📜 Current Queue",
+        "nowPlaying": "🔊 Now Playing:"
+      },
+      "nowplaying": {
+        "description": "Display the currently playing Player.",
+        "nowPlaying": "🔊 Now Playing",
+        "title": "Title",
+        "author": "Author",
+        "duration": "Duration",
+        "progress": "Progress",
+        "volume": "Volume",
+        "loop": "Loop",
+        "progressPercentage": "Progress Percentage",
+        "requestedBy": "Requested By"
+      },
+      "clear": {
+        "description": "Clear the Player queue and stop the Player.",
+        "cleared": "🧹 The queue has been cleared and Player has been stopped."
+      },
+      "remove": {
+        "description": "Remove a specific Player from the queue.",
+        "removed": "🗑️ Removed `{Player}` from the queue."
+      }
+    },
+    "events": {
+      "playPlayer": "🔊 Playing: {Player} | Requested by: {user}",
+      "addPlayer": "🔊 Added `{Player}` - `{duration}` to the queue by {user}",
+      "addList": "🔊 Added `{playlist}` playlist ({count} Players) to queue\nVolume: `{volume}%` | Loop: `{loop}`",
+      "empty": "⛔ Voice channel is empty! Leaving the channel...",
+      "finish": "🏁 Queue finished!",
+      "error": "⛔ An error encountered: {error}",
+      "searchNoResult": "⛔ No result found for `{query}`!"
+    },
+    "buttons": {
+      "pause": "⏸ Pause",
+      "resume": "▶️ Resume",
+      "skip": "⏭️ Skip",
+      "stop": "⏹️ Stop",
+      "volumeUp": "🔊 Volume Up",
+      "volumeDown": "🔉 Volume Down",
+      "repeat": "🔁 Repeat",
+      "open": "🔗 Open"
+    },
+    "misc": {
+      "unknownError": "⛔ An unexpected error occurred."
+    }
+  }

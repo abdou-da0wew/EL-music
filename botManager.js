@@ -5,16 +5,14 @@ const { SoundCloudPlugin } = require("@distube/soundcloud");
 const { YtDlpPlugin } = require("@distube/yt-dlp");
 const path = require("path");
 const fs = require("fs");
-const os = require("os");
 const { performance } = require('perf_hooks');
 const sodium = require("libsodium-wrappers");
 const Localization = require("./src/utils/localization");
-const formatTime = require("./src/utils/formatTime");
 
 const activeBots = new Map();
 const botStats = new Map();
 
-// Resource monitoring
+// Performance monitoring
 setInterval(() => {
     activeBots.forEach((botData, token) => {
         const startUsage = process.cpuUsage();
@@ -31,10 +29,97 @@ setInterval(() => {
             cpuUsage: cpuPercent.toFixed(2),
             memoryUsage: (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2),
             uptime: process.uptime(),
-            lastActivity: Date.now()
+            lastActivity: Date.now(),
+            guilds: botData.client.guilds.cache.size,
+            users: botData.client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0),
+            voiceConnections: botData.client.voice.adapters.size
         });
     });
 }, 10000);
+
+// Utility functions
+function maskToken(token) {
+    if (!token || token.length < 10) return 'invalid';
+    return `${token.substring(0, 2)}...${token.substring(token.length - 4)}`;
+}
+
+function detectSource(input) {
+    if (!input) return 'unknown';
+    if (/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(input)) {
+        return "youtube";
+    } else if (/soundcloud\.com/i.test(input)) {
+        return "soundcloud";
+    } else if (/\.(mp3|wav|ogg|flac)$/i.test(input)) {
+        return "direct";
+    } else {
+        return "unknown";
+    }
+}
+
+async function hybridPlay(client, message, query, voiceChannel) {
+    const source = detectSource(query);
+    let loadingMsg;
+
+    try {
+        // Delete previous loading message if exists
+        if (message.metadata?.loadingMsg) {
+            await message.metadata.loadingMsg.delete().catch(() => {});
+        }
+
+        loadingMsg = await message.reply("🔍 جاري البحث...");
+
+        // Try YouTube first for all queries except explicit SoundCloud URLs
+        if (source !== 'soundcloud') {
+            try {
+                let youtubeQuery = query;
+                
+                // If it's not a URL, search YouTube
+                if (source === 'unknown') {
+                    const searchResults = await ytSearch({ 
+                        query,
+                        hl: 'ar', // Arabic language
+                        category: 'music'
+                    });
+                    
+                    if (searchResults.videos.length > 0) {
+                        youtubeQuery = searchResults.videos[0].url;
+                    }
+                }
+
+                await client.distube.play(voiceChannel, youtubeQuery, {
+                    textChannel: message.channel,
+                    member: message.member,
+                    metadata: {
+                        message,
+                        source: 'youtube',
+                        loadingMsg
+                    }
+                });
+                return;
+            } catch (ytError) {
+                console.warn('YouTube attempt failed:', ytError);
+                // Only throw if it was explicitly a YouTube URL
+                if (source === 'youtube') throw ytError;
+            }
+        }
+
+        // Fallback to SoundCloud
+        if (source !== 'youtube') {
+            await client.distube.play(voiceChannel, query, {
+                textChannel: message.channel,
+                member: message.member,
+                metadata: {
+                    message,
+                    source: 'soundcloud',
+                    loadingMsg
+                }
+            });
+        }
+    } catch (error) {
+        await loadingMsg?.edit("❌ فشل التشغيل: " + error.message.slice(0, 100)).catch(() => {});
+        throw error;
+    }
+}
 
 async function createBot(token, roomId) {
     try {
@@ -45,7 +130,6 @@ async function createBot(token, roomId) {
         }
 
         const startTime = performance.now();
-        const config = require("./config");
 
         const client = new Client({
             intents: [
@@ -53,18 +137,15 @@ async function createBot(token, roomId) {
                 GatewayIntentBits.GuildVoiceStates,
                 GatewayIntentBits.GuildMessages,
                 GatewayIntentBits.MessageContent,
-                GatewayIntentBits.GuildEmojisAndStickers,
-                GatewayIntentBits.GuildExpressions
             ],
             partials: [Partials.Channel],
             shards: 'auto'
         });
 
         client.roomId = roomId;
-        client.customPrefix = `!${roomId.slice(-4)}`;
-        client.config = config;
+        client.customPrefix = `!${roomId.slice(-4)}`; // Unique prefix based on room ID
         client.emojis = config.emojis;
-        client.formatTime = formatTime;
+
 
         client.on('error', error => {
             console.error(`[BOT ${maskToken(token)}] Client error:`, error);
@@ -74,10 +155,12 @@ async function createBot(token, roomId) {
             console.warn(`[BOT ${maskToken(token)}] Client warning:`, warning);
         });
 
+        const config = require("./config");
+        client.config = config;
         client.localization = new Localization(client);
         client.commands = new Collection();
 
-        // Load Commands
+        // Load commands
         const commandsPath = path.join(__dirname, "src", "commands");
         const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
 
@@ -102,7 +185,7 @@ async function createBot(token, roomId) {
             }
         }
 
-        // Load Events
+        // Load events
         const eventsPath = path.join(__dirname, "src", "events");
         const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith(".js"));
 
@@ -130,135 +213,30 @@ async function createBot(token, roomId) {
             }
         }
 
-        // Initialize DisTube with proper error handling
+        // Enhanced DisTube setup
         client.distube = new DisTube(client, {
-
+            plugins: [new SoundCloudPlugin(), new YtDlpPlugin()],
             emitNewSongOnly: true,
-            plugins: [
-                new SoundCloudPlugin(),
-                new YtDlpPlugin()
-            ],
             nsfw: false,
-            customFilters: client.config.filters || {}
         });
 
-        // Enhanced DisTube event handling
+        // Improved error handling
         client.distube
             .on('error', (channel, error) => {
                 console.error(`[BOT ${maskToken(token)}] DisTube error:`, error);
-                try {
-                    if (channel?.send) {
-                        channel.send({
-                            content: `❌ An error occurred: ${error.message}`,
-                            ephemeral: true,
-                        }).catch(console.error);
-                    }
-                } catch (e) {
-                    console.error(`[BOT ${maskToken(token)}] Error handling DisTube error:`, e);
-                }
-            })
-            .on('initQueue', queue => {
-                // Initialize queue with default settings
-                queue.autoplay = false;
-                queue.volume = 100;
-                queue.emitNewSongOnly = true;
-                queue.repeatMode = 0;
-            })
-            .on('playSong', async (queue, song) => {
-                try {
-                    if (!validateQueue(queue)) return;
-
-                    queue.textChannel = queue.textChannel || song.metadata?.message?.channel;
-                    if (!queue.textChannel) return;
-
-                    // Cleanup previous messages
-                    try {
-                        if (queue.currentMessage) await queue.currentMessage.delete().catch(() => {});
-                        if (song.metadata?.loadingMsg) await song.metadata.loadingMsg.delete().catch(() => {});
-                    } catch (cleanupError) {
-                        console.error('Message cleanup error:', cleanupError);
-                    }
-
-                    // Send now playing embed
-                    const embed = new EmbedBuilder()
-                        .setColor(Colors.Green)
-                        .setTitle(`${client.config.emojis.nowPlaying} Now Playing`)
-                        .setDescription(`[${song.name}](${song.url})`)
-                        .setThumbnail(song.thumbnail)
-                        .addFields(
-                            { name: 'Duration', value: formatTime(song.duration), inline: true },
-                            { name: 'Requested by', value: song.user?.toString() || 'Unknown', inline: true }
-                        );
-
-                    queue.currentMessage = await queue.textChannel.send({ 
-                        embeds: [embed],
-                        content: `${client.config.emojis.music} Now playing`
-                    }).catch(console.error);
-
-                    // Update bot presence
-                    await client.user.setPresence({
-                        activities: [{
-                            name: `${song.name.slice(0, 50)}`,
-                            type: ActivityType.Listening
-                        }],
-                        status: 'online'
-                    }).catch(console.error);
-
-                } catch (error) {
-                    console.error('Error in playSong:', error);
-                }
-            })
-            .on('addSong', (queue, song) => {
-                try {
-                    if (!validateQueue(queue)) return;
-                    
-                    queue.textChannel = queue.textChannel || song.metadata?.message?.channel;
-                    if (!queue.textChannel) return;
-
-                    const embed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setDescription(`🎵 Added to queue: [${song.name}](${song.url}) [${formatTime(song.duration)}]`);
-
-                    queue.textChannel.send({ embeds: [embed] }).catch(console.error);
-                } catch (error) {
-                    console.error('Error in addSong:', error);
-                }
-            })
-            .on('finish', queue => {
-                try {
-                    if (!validateQueue(queue)) return;
-                    
-                    queue.textChannel.send("🏁 Queue finished!").catch(console.error);
-                    queue.client.user.setPresence({
-                        activities: [{
-                            name: "🔊 Discord Player!",
-                            type: ActivityType.Playing
-                        }],
-                        status: 'online'
-                    }).catch(console.error);
-                } catch (error) {
-                    console.error('Error in finish:', error);
+                if (channel?.send) {
+                    channel.send(`${client.config.emojis.error} Error: ${error.message}`).catch(console.error);
                 }
             })
             .on('disconnect', queue => {
-                try {
-                    if (queue.textChannel) {
-                        queue.textChannel.send("🔌 Disconnected from voice channel").catch(console.error);
+                console.log(`[BOT ${maskToken(token)}] Disconnected, attempting reconnect...`);
+                setTimeout(() => {
+                    if (queue.voiceChannel && client.roomId === queue.voiceChannel.id) {
+                        client.distube.voices.join(queue.voiceChannel)
+                            .catch(err => console.error('Reconnect failed:', err));
                     }
-                } catch (error) {
-                    console.error('Error in disconnect:', error);
-                }
-            })
-            .on('empty', queue => {
-                try {
-                    if (queue.textChannel) {
-                        queue.textChannel.send("🛑 Leaving voice channel due to inactivity").catch(console.error);
-                    }
-                } catch (error) {
-                    console.error('Error in empty:', error);
-                }
+                }, 5000);
             });
-
 
         await client.login(token);
         
@@ -338,15 +316,11 @@ function getBotStats(token) {
     };
 }
 
-function maskToken(token) {
-    if (!token || token.length < 10) return 'invalid';
-    return `${token.substring(0, 2)}...${token.substring(token.length - 4)}`;
-}
-
 module.exports = {
     createBot,
     stopBot,
     listBots,
     getBotStats,
-    activeBots
+    activeBots,
+    hybridPlay
 };

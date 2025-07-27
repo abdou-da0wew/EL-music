@@ -14,6 +14,11 @@ module.exports = function(client) {
             return true;
         }
 
+        // Check for custom prefix
+        if (message.content.startsWith(client.customPrefix)) {
+            return true;
+        }
+
         return false;
     };
 };

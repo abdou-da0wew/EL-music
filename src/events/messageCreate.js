@@ -9,8 +9,15 @@ module.exports = {
         const shouldHandle = await roomHandler(client)(message);
         if (!shouldHandle) return;
 
-        const args = message.content.trim().split(/ +/);
-        const commandName = args.shift().toLowerCase();
+        let args, commandName;
+        
+        if (message.content.startsWith(client.customPrefix)) {
+            args = message.content.slice(client.customPrefix.length).trim().split(/ +/);
+            commandName = args.shift().toLowerCase();
+        } else {
+            args = message.content.trim().split(/ +/);
+            commandName = args.shift().toLowerCase();
+        }
 
         const command = client.commands.get(commandName);
         if (!command) return;

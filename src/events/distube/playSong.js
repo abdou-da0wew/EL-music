@@ -1,12 +1,9 @@
 // src/events/distube/playSong.js
 const { ActivityType, EmbedBuilder, Colors } = require("discord.js");
-const formatTime = require("../../utils/formatTime");
 
 module.exports = {
     name: 'playSong',
     async execute(queue, song, client) {
-        const { emojis } = client.config;
-        
         try {
             if (!queue || !song) {
                 console.error('Invalid queue or song object');
@@ -30,20 +27,27 @@ module.exports = {
                 console.error('Error cleaning up messages:', cleanupError);
             }
 
-            const embed = new EmbedBuilder()
-                .setColor(Colors.Green)
-                .setTitle(`${emojis.nowPlaying} Now Playing`)
-                .setDescription(`[${song.name}](${song.url})`)
-                .setThumbnail(song.thumbnail || null)
-                .addFields(
-                    { name: 'Duration', value: formatTime(song.duration), inline: true },
-                    { name: 'Requested by', value: song.user?.toString() || 'Unknown', inline: true }
-                );
+            // Skip card sending if noCard flag is set
+            if (song.metadata?.noCard) {
+                // Send simplified now playing message instead
+                const embed = new EmbedBuilder()
+                    .setColor(Colors.Green)
+                    .setTitle(`${emojis.nowPlaying} Now Playing`)
+                    .setDescription(`[${song.name}](${song.url})`)
+                    .setThumbnail(song.thumbnail)
+                    .addFields(
+                        { name: 'Duration', value: song.formattedDuration, inline: true },
+                        { name: 'Requested by', value: song.user.toString(), inline: true }
+                    );
 
-            queue.currentMessage = await queue.textChannel.send({ 
-                embeds: [embed],
-                content: `${emojis.music} Now playing`
-            }).catch(console.error);
+                queue.currentMessage = await queue.textChannel.send({ 
+                    embeds: [embed],
+                    content: `${emojis.music} Now playing`
+                }).catch(console.error);
+            } else {
+                // Original card sending logic would go here
+                // But we're skipping it based on the noCard flag
+            }
 
             await client.user.setPresence({
                 activities: [{
@@ -56,14 +60,11 @@ module.exports = {
         } catch (error) {
             console.error('Error in playSong:', error);
             
-            if (queue?.textChannel) {
-                try {
-                    await queue.textChannel.send({
-                        content: `${emojis.music} Now playing: ${song?.name || 'Unknown song'}`
-                    });
-                } catch (finalError) {
-                    console.error('Final fallback failed:', finalError);
-                }
+            // Final fallback - simple message
+            if (queue.textChannel) {
+                await queue.textChannel.send({
+                    content: `${emojis.music} Now playing: ${song.name}`
+                }).catch(console.error);
             }
         }
     },
